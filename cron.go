@@ -152,7 +152,7 @@ func (c *Cron) AddJob(spec string, cmd Job) (EntryID, error) {
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, cmd), nil
+	return c.Schedule(schedule, cmd, false), nil
 }
 
 func (c *Cron) AddJobAt(td time.Time, cmd func()) (EntryID, error) {
@@ -160,13 +160,13 @@ func (c *Cron) AddJobAt(td time.Time, cmd func()) (EntryID, error) {
 	sched := TimeSchedule{
 		Tm: td,
 	}
-	return c.Schedule(&sched, FuncJob(cmd)), nil
+	return c.Schedule(&sched, FuncJob(cmd), true), nil
 
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
 // The job is wrapped with the configured Chain.
-func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
+func (c *Cron) Schedule(schedule Schedule, cmd Job, oneTime bool) EntryID {
 	c.runningMu.Lock()
 	defer c.runningMu.Unlock()
 	c.nextID++
@@ -175,6 +175,7 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 		Schedule:   schedule,
 		WrappedJob: c.chain.Then(cmd),
 		Job:        cmd,
+		OneTime:    oneTime,
 	}
 	if !c.running {
 		c.entries = append(c.entries, entry)

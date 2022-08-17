@@ -279,9 +279,9 @@ func TestRunningMultipleSchedules(t *testing.T) {
 	cron.AddFunc("0 0 0 1 1 ?", func() {})
 	cron.AddFunc("0 0 0 31 12 ?", func() {})
 	cron.AddFunc("* * * * * ?", func() { wg.Done() })
-	cron.Schedule(Every(time.Minute), FuncJob(func() {}))
-	cron.Schedule(Every(time.Second), FuncJob(func() { wg.Done() }))
-	cron.Schedule(Every(time.Hour), FuncJob(func() {}))
+	cron.Schedule(Every(time.Minute), FuncJob(func() {}), false)
+	cron.Schedule(Every(time.Second), FuncJob(func() { wg.Done() }), false)
+	cron.Schedule(Every(time.Hour), FuncJob(func() {}), false)
 
 	cron.Start()
 	defer cron.Stop()
@@ -442,8 +442,8 @@ func TestJob(t *testing.T) {
 	cron.AddJob("0 0 0 1 1 ?", testJob{wg, "job1"})
 	job2, _ := cron.AddJob("* * * * * ?", testJob{wg, "job2"})
 	cron.AddJob("1 0 0 1 1 ?", testJob{wg, "job3"})
-	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), testJob{wg, "job4"})
-	job5 := cron.Schedule(Every(5*time.Minute), testJob{wg, "job5"})
+	cron.Schedule(Every(5*time.Second+5*time.Nanosecond), testJob{wg, "job4"}, false)
+	job5 := cron.Schedule(Every(5*time.Minute), testJob{wg, "job5"}, false)
 
 	// Test getting an Entry pre-Start.
 	if actualName := cron.Entry(job2).Job.(testJob).name; actualName != "job2" {
@@ -501,7 +501,7 @@ func TestScheduleAfterRemoval(t *testing.T) {
 	var mu sync.Mutex
 
 	cron := newWithSeconds()
-	hourJob := cron.Schedule(Every(time.Hour), FuncJob(func() {}))
+	hourJob := cron.Schedule(Every(time.Hour), FuncJob(func() {}), false)
 	cron.Schedule(Every(time.Second), FuncJob(func() {
 		mu.Lock()
 		defer mu.Unlock()
@@ -519,7 +519,7 @@ func TestScheduleAfterRemoval(t *testing.T) {
 		case 3:
 			panic("unexpected 3rd call")
 		}
-	}))
+	}), false)
 
 	cron.Start()
 	defer cron.Stop()
@@ -546,7 +546,7 @@ func TestJobWithZeroTimeDoesNotRun(t *testing.T) {
 	cron := newWithSeconds()
 	var calls int64
 	cron.AddFunc("* * * * * *", func() { atomic.AddInt64(&calls, 1) })
-	cron.Schedule(new(ZeroSchedule), FuncJob(func() { t.Error("expected zero task will not run") }))
+	cron.Schedule(new(ZeroSchedule), FuncJob(func() { t.Error("expected zero task will not run") }), false)
 	cron.Start()
 	defer cron.Stop()
 	<-time.After(OneSecond)
