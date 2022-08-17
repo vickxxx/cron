@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,6 +11,20 @@ import (
 var secondParser = NewParser(Second | Minute | Hour | Dom | Month | DowOptional | Descriptor)
 
 func TestRange(t *testing.T) {
+
+	x := &SpecSchedule{
+		Second:   1 << seconds.min,
+		Minute:   1 << minutes.min,
+		Hour:     1 << hours.min,
+		Dom:      1 << dom.min,
+		Month:    1 << months.min,
+		Dow:      all(dow),
+		Location: time.UTC,
+	}
+	nt := x.Next(time.Now())
+	print(x)
+	fmt.Println(nt)
+
 	zero := uint64(0)
 	ranges := []struct {
 		expr     string
@@ -371,6 +386,7 @@ func midnight(loc *time.Location) *SpecSchedule {
 }
 
 func annual(loc *time.Location) *SpecSchedule {
+
 	return &SpecSchedule{
 		Second:   1 << seconds.min,
 		Minute:   1 << minutes.min,
