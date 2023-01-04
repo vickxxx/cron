@@ -2,6 +2,7 @@ package cron
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -56,18 +57,17 @@ type Parser struct {
 //
 // Examples
 //
-//  // Standard parser without descriptors
-//  specParser := NewParser(Minute | Hour | Dom | Month | Dow)
-//  sched, err := specParser.Parse("0 0 15 */3 *")
+//	// Standard parser without descriptors
+//	specParser := NewParser(Minute | Hour | Dom | Month | Dow)
+//	sched, err := specParser.Parse("0 0 15 */3 *")
 //
-//  // Same as above, just excludes time fields
-//  specParser := NewParser(Dom | Month | Dow)
-//  sched, err := specParser.Parse("15 */3 *")
+//	// Same as above, just excludes time fields
+//	specParser := NewParser(Dom | Month | Dow)
+//	sched, err := specParser.Parse("15 */3 *")
 //
-//  // Same as above, just makes Dow optional
-//  specParser := NewParser(Dom | Month | DowOptional)
-//  sched, err := specParser.Parse("15 */3")
-//
+//	// Same as above, just makes Dow optional
+//	specParser := NewParser(Dom | Month | DowOptional)
+//	sched, err := specParser.Parse("15 */3")
 func NewParser(options ParseOption) Parser {
 	optionals := 0
 	if options&DowOptional > 0 {
@@ -247,7 +247,9 @@ func getField(field string, r bounds) (uint64, error) {
 }
 
 // getRange returns the bits indicated by the given expression:
-//   number | number "-" number [ "/" number ]
+//
+//	number | number "-" number [ "/" number ]
+//
 // or error parsing range.
 func getRange(expr string, r bounds) (uint64, error) {
 	var (
@@ -431,4 +433,73 @@ func parseDescriptor(descriptor string, loc *time.Location) (Schedule, error) {
 	}
 
 	return nil, fmt.Errorf("unrecognized descriptor: %s", descriptor)
+}
+
+// Parse returns a new crontab schedule representing the given spec.
+// It panics with a descriptive error if the spec is not valid.
+//
+// It accepts
+//   - Full crontab specs, e.g. "* * * * * ?"
+//   - Descriptors, e.g. "@midnight", "@every 1h30m"
+func Parse(spec string) Schedule {
+
+	if len(spec) == 0 {
+		return nil
+	}
+
+	// Extract timezone if present
+	var loc = time.Local
+	if strings.HasPrefix(spec, "TZ=") || strings.HasPrefix(spec, "CRON_TZ=") {
+		var err error
+		i := strings.Index(spec, " ")
+		eq := strings.Index(spec, "=")
+		if loc, err = time.LoadLocation(spec[eq+1 : i]); err != nil {
+			return nil
+		}
+		spec = strings.TrimSpace(spec[i:])
+	}
+
+	if spec[0] == '@' {
+		s, _ := parseDescriptor(spec, loc)
+		return s
+	}
+
+	// Split on whitespace.  We require 5 or 6 fields.
+	// (second) (minute) (hour) (day of month) (month) (day of week, optional)
+	fields := strings.Fields(spec)
+	if len(fields) != 5 && len(fields) != 6 {
+		log.Panicf("Expected 5 or 6 fields, found %d: %s", len(fields), spec)
+	}
+
+	// If a sixth field is not provided (DayOfWeek), then it is equivalent to star.
+	if len(fields) == 5 {
+		fields = append(fields, "*")
+	}
+
+	schedule := &SpecSchedule{
+		Second: getField2(fields[0], seconds),
+		Minute: getField2(fields[1], minutes),
+		Hour:   getField2(fields[2], hours),
+		Dom:    getField2(fields[3], dom),
+		Month:  getField2(fields[4], months),
+		Dow:    getField2(fields[5], dow),
+	}
+
+	return schedule
+}
+
+// getField returns an Int with the bits set representing all of the times that
+// the field represents.  A "field" is a comma-separated list of "ranges".
+func getField2(field string, r bounds) uint64 {
+	// list = range {"," range}
+	var bits uint64
+	ranges := strings.FieldsFunc(field, func(r rune) bool { return r == ',' })
+	for _, expr := range ranges {
+		bit, err := getRange(expr, r)
+		if err != nil {
+			return bits
+		}
+		bits |= bit
+	}
+	return bits
 }
