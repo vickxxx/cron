@@ -359,7 +359,7 @@ func (c *Cron) run() {
 				// 	c.logger.Info("removed", "entry", id)
 			}
 
-			// break
+			break
 		}
 	}
 }
